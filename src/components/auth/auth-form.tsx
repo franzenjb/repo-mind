@@ -16,7 +16,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Github, Mail, Loader2 } from 'lucide-react';
+import { Github, Mail, Loader2, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface AuthFormProps {
   mode: 'signin' | 'signup';
@@ -28,7 +29,8 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<'github' | null>(null);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
 
   const router = useRouter();
   const { signInWithEmail, signUpWithEmail, signInWithGitHub } = useAuth();
@@ -44,7 +46,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         if (error) {
           setError(error.message);
         } else {
-          router.push('/sessions');
+          router.push('/repos');
           router.refresh();
         }
       } else {
@@ -53,7 +55,6 @@ export function AuthForm({ mode }: AuthFormProps) {
           setError(error.message);
         } else {
           setError(null);
-          // Show success message for email confirmation
           setError('Check your email to confirm your account!');
         }
       }
@@ -63,11 +64,12 @@ export function AuthForm({ mode }: AuthFormProps) {
   };
 
   const handleGitHubSignIn = async () => {
-    setOauthLoading('github');
+    setGithubLoading(true);
+    setError(null);
     const { error } = await signInWithGitHub();
     if (error) {
       setError(error.message);
-      setOauthLoading(null);
+      setGithubLoading(false);
     }
   };
 
@@ -75,105 +77,138 @@ export function AuthForm({ mode }: AuthFormProps) {
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">
-          {mode === 'signin' ? 'Welcome back' : 'Create an account'}
+          {mode === 'signin' ? 'Welcome back' : 'Get started'}
         </CardTitle>
         <CardDescription>
           {mode === 'signin'
-            ? 'Sign in to your RepoMind account'
-            : 'Start your learning journey with RepoMind'}
+            ? 'Sign in to access your repositories'
+            : 'Connect your GitHub to document your repos'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-2">
+        {/* GitHub - Primary method */}
+        <div className="space-y-3">
           <Button
-            variant="outline"
+            size="lg"
+            className="w-full"
             onClick={handleGitHubSignIn}
-            disabled={oauthLoading !== null}
+            disabled={githubLoading}
           >
-            {oauthLoading === 'github' ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            {githubLoading ? (
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             ) : (
-              <Github className="mr-2 h-4 w-4" />
+              <Github className="mr-2 h-5 w-5" />
             )}
             Continue with GitHub
           </Button>
+          <p className="text-xs text-center text-muted-foreground">
+            Recommended - gives access to your repositories
+          </p>
         </div>
 
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <Separator className="w-full" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Or continue with email
-            </span>
-          </div>
-        </div>
+        {error && (
+          <Alert variant={error.includes('Check your email') ? 'default' : 'destructive'}>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'signup' && (
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                placeholder="John Doe"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
+        {/* Email fallback */}
+        {!showEmailForm ? (
+          <div className="pt-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or
+                </span>
+              </div>
             </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </div>
-
-          {error && (
-            <p
-              className={`text-sm ${error.includes('Check your email') ? 'text-green-600' : 'text-destructive'}`}
+            <Button
+              variant="ghost"
+              className="w-full mt-4 text-muted-foreground"
+              onClick={() => setShowEmailForm(true)}
             >
-              {error}
-            </p>
-          )}
-
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
               <Mail className="mr-2 h-4 w-4" />
-            )}
-            {mode === 'signin' ? 'Sign In' : 'Sign Up'}
-          </Button>
-        </form>
+              Use email instead
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or continue with email
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'signup' && (
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <Button type="submit" variant="outline" className="w-full" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="mr-2 h-4 w-4" />
+                )}
+                {mode === 'signin' ? 'Sign In with Email' : 'Sign Up with Email'}
+              </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                Note: Email sign-in won&apos;t have access to your GitHub repos.
+                For full functionality, use GitHub sign-in.
+              </p>
+            </form>
+          </>
+        )}
       </CardContent>
       <CardFooter className="flex flex-col space-y-2">
         {mode === 'signin' ? (
-          <>
-            <Link
-              href="/signup"
-              className="text-sm text-muted-foreground hover:underline"
-            >
-              Don&apos;t have an account? Sign up
-            </Link>
-          </>
+          <Link
+            href="/signup"
+            className="text-sm text-muted-foreground hover:underline"
+          >
+            Don&apos;t have an account? Sign up
+          </Link>
         ) : (
           <Link
             href="/signin"

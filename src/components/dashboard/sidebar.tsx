@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Brain,
-  BookOpen,
+  Github,
   FileText,
   MessageSquare,
   Search,
@@ -31,9 +31,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const navItems = [
   {
-    title: 'Sessions',
-    href: '/sessions',
-    icon: BookOpen,
+    title: 'My Repos',
+    href: '/repos',
+    icon: Github,
   },
   {
     title: 'Notes',
@@ -73,6 +73,9 @@ export function Sidebar() {
     router.push('/');
     router.refresh();
   };
+
+  // Get GitHub username from user metadata
+  const githubUsername = user?.user_metadata?.user_name || user?.user_metadata?.preferred_username;
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-card">
@@ -130,14 +133,14 @@ export function Sidebar() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="w-full justify-start gap-3 h-12">
               <Avatar className="h-6 w-6">
-                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarImage src={user?.user_metadata?.avatar_url || profile?.avatar_url || undefined} />
                 <AvatarFallback>
-                  {profile?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}
+                  {githubUsername?.[0]?.toUpperCase() || profile?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col items-start text-left overflow-hidden">
                 <span className="text-sm font-medium truncate w-full">
-                  {profile?.full_name || 'User'}
+                  {githubUsername || profile?.full_name || 'User'}
                 </span>
                 <span className="text-xs text-muted-foreground truncate w-full">
                   {user?.email}
