@@ -13,19 +13,6 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const supabase = createClient();
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state change:', event, session ? 'has session' : 'no session');
-
-      if (event === 'SIGNED_IN' && session) {
-        setStatus('success');
-        setTimeout(() => {
-          router.push('/repos');
-          router.refresh();
-        }, 500);
-      }
-    });
-
     const handleAuth = async () => {
       // Check for errors in URL (both hash and query params)
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -43,10 +30,7 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // For implicit flow, tokens come in the hash - Supabase auto-detects them
-      // Just need to wait for the session to be established
-
-      // Check if we already have a session
+      // Check if we have a session with provider_token
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
@@ -60,6 +44,31 @@ export default function AuthCallbackPage() {
       }
 
       if (session) {
+        console.log('Session found:', {
+          user: session.user?.email,
+          hasProviderToken: !!session.provider_token,
+          providerTokenLength: session.provider_token?.length,
+        });
+
+        // Store the provider token in the profile if available
+        if (session.provider_token && session.user) {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: session.user.id,
+              github_token: session.provider_token,
+              updated_at: new Date().toISOString(),
+            }, {
+              onConflict: 'id',
+            });
+
+          if (updateError) {
+            console.error('Failed to store GitHub token:', updateError);
+          } else {
+            console.log('GitHub token stored successfully');
+          }
+        }
+
         setStatus('success');
         setTimeout(() => {
           router.push('/repos');
@@ -68,11 +77,24 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // No session yet - wait a bit and check again (implicit flow may need a moment)
+      // No session yet - wait and retry
       setTimeout(async () => {
         const { data: { session: retrySession } } = await supabase.auth.getSession();
 
         if (retrySession) {
+          // Store token on retry too
+          if (retrySession.provider_token && retrySession.user) {
+            await supabase
+              .from('profiles')
+              .upsert({
+                id: retrySession.user.id,
+                github_token: retrySession.provider_token,
+                updated_at: new Date().toISOString(),
+              }, {
+                onConflict: 'id',
+              });
+          }
+
           setStatus('success');
           setTimeout(() => {
             router.push('/repos');
@@ -85,8 +107,38 @@ export default function AuthCallbackPage() {
             router.push('/signin');
           }, 2000);
         }
-      }, 3000);
+      }, 2000);
     };
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session ? 'has session' : 'no session');
+
+      if (event === 'SIGNED_IN' && session) {
+        // Store the provider token
+        if (session.provider_token && session.user) {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: session.user.id,
+              github_token: session.provider_token,
+              updated_at: new Date().toISOString(),
+            }, {
+              onConflict: 'id',
+            });
+
+          if (updateError) {
+            console.error('Failed to store GitHub token:', updateError);
+          }
+        }
+
+        setStatus('success');
+        setTimeout(() => {
+          router.push('/repos');
+          router.refresh();
+        }, 500);
+      }
+    });
 
     handleAuth();
 

@@ -19,9 +19,29 @@ export function useGitHubToken() {
     queryKey: ['github-token'],
     queryFn: async (): Promise<string | null> => {
       const { data: { session } } = await supabase.auth.getSession();
-      return session?.provider_token || null;
+
+      // First try to get from session (available right after OAuth)
+      if (session?.provider_token) {
+        return session.provider_token;
+      }
+
+      // If not in session, try to get from profile
+      if (session?.user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('github_token')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile?.github_token) {
+          return profile.github_token;
+        }
+      }
+
+      return null;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -40,7 +60,7 @@ export function useGitHubUser() {
 }
 
 export function useGitHubRepos() {
-  const { data: token } = useGitHubToken();
+  const { data: token, isLoading: tokenLoading } = useGitHubToken();
 
   return useQuery({
     queryKey: ['github-repos', token],
@@ -48,7 +68,7 @@ export function useGitHubRepos() {
       if (!token) return [];
       return fetchGitHubRepos(token);
     },
-    enabled: !!token,
+    enabled: !!token && !tokenLoading,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
