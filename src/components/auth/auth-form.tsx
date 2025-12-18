@@ -67,6 +67,10 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
   const handleGitHubSignIn = async () => {
     setGithubLoading(true);
     setError(null);
+    // Clear error from URL to ensure fresh OAuth state
+    if (window.location.search.includes('error')) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
     const { error } = await signInWithGitHub();
     if (error) {
       setError(error.message);
@@ -110,7 +114,21 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
         {error && (
           <Alert variant={error.includes('Check your email') ? 'default' : 'destructive'}>
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error}
+              {!error.includes('Check your email') && (
+                <button
+                  type="button"
+                  className="ml-2 underline hover:no-underline"
+                  onClick={() => {
+                    setError(null);
+                    window.history.replaceState({}, '', window.location.pathname);
+                  }}
+                >
+                  Dismiss
+                </button>
+              )}
+            </AlertDescription>
           </Alert>
         )}
 
