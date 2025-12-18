@@ -45,6 +45,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Auth callback - always allow (handles OAuth redirects)
+  if (request.nextUrl.pathname.startsWith('/auth/callback')) {
+    return supabaseResponse;
+  }
+
   // Auth pages - redirect to repos if already authenticated
   const authPaths = ['/signin', '/signup'];
   const isAuthPath = authPaths.some((path) =>
