@@ -21,13 +21,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface AuthFormProps {
   mode: 'signin' | 'signup';
+  initialError?: string | null;
 }
 
-export function AuthForm({ mode }: AuthFormProps) {
+export function AuthForm({ mode, initialError }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError || null);
   const [loading, setLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
