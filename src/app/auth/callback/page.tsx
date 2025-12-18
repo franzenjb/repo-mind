@@ -13,6 +13,24 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const supabase = createClient();
 
+    const storeGitHubToken = async (userId: string, token: string) => {
+      // Update the existing profile with the GitHub token using raw RPC
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('profiles')
+        .update({
+          github_token: token,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Failed to store GitHub token:', error);
+      } else {
+        console.log('GitHub token stored successfully');
+      }
+    };
+
     const handleAuth = async () => {
       // Check for errors in URL (both hash and query params)
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -52,21 +70,7 @@ export default function AuthCallbackPage() {
 
         // Store the provider token in the profile if available
         if (session.provider_token && session.user) {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .upsert({
-              id: session.user.id,
-              github_token: session.provider_token,
-              updated_at: new Date().toISOString(),
-            }, {
-              onConflict: 'id',
-            });
-
-          if (updateError) {
-            console.error('Failed to store GitHub token:', updateError);
-          } else {
-            console.log('GitHub token stored successfully');
-          }
+          await storeGitHubToken(session.user.id, session.provider_token);
         }
 
         setStatus('success');
@@ -84,15 +88,7 @@ export default function AuthCallbackPage() {
         if (retrySession) {
           // Store token on retry too
           if (retrySession.provider_token && retrySession.user) {
-            await supabase
-              .from('profiles')
-              .upsert({
-                id: retrySession.user.id,
-                github_token: retrySession.provider_token,
-                updated_at: new Date().toISOString(),
-              }, {
-                onConflict: 'id',
-              });
+            await storeGitHubToken(retrySession.user.id, retrySession.provider_token);
           }
 
           setStatus('success');
@@ -117,19 +113,7 @@ export default function AuthCallbackPage() {
       if (event === 'SIGNED_IN' && session) {
         // Store the provider token
         if (session.provider_token && session.user) {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .upsert({
-              id: session.user.id,
-              github_token: session.provider_token,
-              updated_at: new Date().toISOString(),
-            }, {
-              onConflict: 'id',
-            });
-
-          if (updateError) {
-            console.error('Failed to store GitHub token:', updateError);
-          }
+          await storeGitHubToken(session.user.id, session.provider_token);
         }
 
         setStatus('success');

@@ -27,7 +27,8 @@ export function useGitHubToken() {
 
       // If not in session, try to get from profile
       if (session?.user?.id) {
-        const { data: profile } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: profile } = await (supabase as any)
           .from('profiles')
           .select('github_token')
           .eq('id', session.user.id)
