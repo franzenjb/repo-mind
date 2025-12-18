@@ -14,7 +14,6 @@ export default function AuthCallbackPage() {
     const supabase = createClient();
 
     const storeGitHubToken = async (userId: string, token: string) => {
-      // Update the existing profile with the GitHub token using raw RPC
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from('profiles')
@@ -31,66 +30,87 @@ export default function AuthCallbackPage() {
       }
     };
 
-    const handleAuth = async () => {
-      // Check for errors in URL (both hash and query params)
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const searchParams = new URLSearchParams(window.location.search);
+    const handleCallback = async () => {
+      try {
+        // Check for errors in URL
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const searchParams = new URLSearchParams(window.location.search);
 
-      const error = hashParams.get('error') || searchParams.get('error');
-      const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
+        const error = hashParams.get('error') || searchParams.get('error');
+        const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
 
-      if (error) {
-        setStatus('error');
-        setErrorMessage(errorDescription || error);
-        setTimeout(() => {
-          router.push(`/signin?error=${encodeURIComponent(errorDescription || error)}`);
-        }, 2000);
-        return;
-      }
-
-      // Check if we have a session with provider_token
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        setStatus('error');
-        setErrorMessage(sessionError.message);
-        setTimeout(() => {
-          router.push(`/signin?error=${encodeURIComponent(sessionError.message)}`);
-        }, 2000);
-        return;
-      }
-
-      if (session) {
-        console.log('Session found:', {
-          user: session.user?.email,
-          hasProviderToken: !!session.provider_token,
-          providerTokenLength: session.provider_token?.length,
-        });
-
-        // Store the provider token in the profile if available
-        if (session.provider_token && session.user) {
-          await storeGitHubToken(session.user.id, session.provider_token);
+        if (error) {
+          console.error('OAuth error:', error, errorDescription);
+          setStatus('error');
+          setErrorMessage(errorDescription || error);
+          setTimeout(() => {
+            router.push(`/signin?error=${encodeURIComponent(errorDescription || error)}`);
+          }, 2000);
+          return;
         }
 
-        setStatus('success');
-        setTimeout(() => {
-          router.push('/repos');
-          router.refresh();
-        }, 500);
-        return;
-      }
+        // Check for code in URL (PKCE flow)
+        const code = searchParams.get('code');
 
-      // No session yet - wait and retry
-      setTimeout(async () => {
+        if (code) {
+          console.log('Exchanging code for session...');
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+
+          if (exchangeError) {
+            console.error('Code exchange error:', exchangeError);
+            setStatus('error');
+            setErrorMessage(exchangeError.message);
+            setTimeout(() => {
+              router.push(`/signin?error=${encodeURIComponent(exchangeError.message)}`);
+            }, 2000);
+            return;
+          }
+
+          if (data.session) {
+            console.log('Session established:', {
+              user: data.session.user?.email,
+              hasProviderToken: !!data.session.provider_token,
+            });
+
+            // Store the GitHub token
+            if (data.session.provider_token && data.session.user) {
+              await storeGitHubToken(data.session.user.id, data.session.provider_token);
+            }
+
+            setStatus('success');
+            setTimeout(() => {
+              router.push('/repos');
+              router.refresh();
+            }, 500);
+            return;
+          }
+        }
+
+        // No code - check if we already have a session (e.g., from hash fragment)
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session) {
+          console.log('Existing session found');
+          if (session.provider_token && session.user) {
+            await storeGitHubToken(session.user.id, session.provider_token);
+          }
+          setStatus('success');
+          setTimeout(() => {
+            router.push('/repos');
+            router.refresh();
+          }, 500);
+          return;
+        }
+
+        // No session - wait and retry once
+        console.log('No session yet, waiting...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
         const { data: { session: retrySession } } = await supabase.auth.getSession();
-
         if (retrySession) {
-          // Store token on retry too
           if (retrySession.provider_token && retrySession.user) {
             await storeGitHubToken(retrySession.user.id, retrySession.provider_token);
           }
-
           setStatus('success');
           setTimeout(() => {
             router.push('/repos');
@@ -98,37 +118,22 @@ export default function AuthCallbackPage() {
           }, 500);
         } else {
           setStatus('error');
-          setErrorMessage('Authentication timed out. Please try again.');
+          setErrorMessage('Authentication failed. Please try again.');
           setTimeout(() => {
             router.push('/signin');
           }, 2000);
         }
-      }, 2000);
-    };
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session ? 'has session' : 'no session');
-
-      if (event === 'SIGNED_IN' && session) {
-        // Store the provider token
-        if (session.provider_token && session.user) {
-          await storeGitHubToken(session.user.id, session.provider_token);
-        }
-
-        setStatus('success');
+      } catch (err) {
+        console.error('Callback error:', err);
+        setStatus('error');
+        setErrorMessage('An unexpected error occurred.');
         setTimeout(() => {
-          router.push('/repos');
-          router.refresh();
-        }, 500);
+          router.push('/signin');
+        }, 2000);
       }
-    });
-
-    handleAuth();
-
-    return () => {
-      subscription.unsubscribe();
     };
+
+    handleCallback();
   }, [router]);
 
   if (status === 'error') {
